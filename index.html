@@ -31,6 +31,11 @@ body{
   height:120px;
   box-shadow:0 0 80px cyan;
 }
+.listening .eye{
+  height:60px;
+  box-shadow:0 0 90px cyan;
+  transform:scaleX(1.2);
+}
 </style>
 </head>
 <body>
@@ -41,11 +46,104 @@ body{
 </div>
 
 <script>
-const face = document.getElementById("face");
+<script>
+  const face = document.getElementById("face");
 
-document.body.addEventListener("click",()=>{
-  face.classList.toggle("speaking");
-});
+  // Stati: idle / listening / speaking
+  function setState(state){
+    face.classList.remove("listening","speaking");
+    if(state==="listening") face.classList.add("listening");
+    if(state==="speaking") face.classList.add("speaking");
+  }
+
+  // ====== SPEECH TO TEXT (microfono) ======
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec;
+
+  function startListening(){
+    if(!SpeechRecognition){
+      alert("Questo browser non supporta SpeechRecognition. Usa Safari/Chrome.");
+      return;
+    }
+
+    rec = new SpeechRecognition();
+    rec.lang = "it-IT";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    setState("listening");
+
+    rec.onresult = async (e) => {
+      const text = e.results[0][0].transcript.trim();
+      console.log("Hai detto:", text);
+      await askGPT(text);
+    };
+
+    rec.onerror = (e) => {
+      console.log("Errore mic:", e.error);
+      setState("idle");
+    };
+
+    rec.onend = () => {
+      // se finisce senza result
+      if(!face.classList.contains("speaking")) setState("idle");
+    };
+
+    rec.start();
+  }
+
+  // ====== CHATGPT (VIA SHORTCUT) ======
+  async function askGPT(userText){
+    try{
+      setState("speaking");
+
+      // QUI useremo un “ponte” con Comandi Rapidi:
+      // L'app web apre un URL speciale -> Shortcut risponde con il testo
+      const url = "shortcuts://run-shortcut?name=PixyGPT&input=text&text=" + encodeURIComponent(userText);
+      window.location.href = url;
+
+      // Dopo che Shortcut ritorna qui (con clipboard), noi leggiamo la clipboard
+      // (Safari spesso chiede permesso al primo uso)
+      setTimeout(async ()=>{
+        try{
+          const answer = await navigator.clipboard.readText();
+          if(answer && answer.length > 0){
+            speak(answer);
+          }else{
+            setState("idle");
+          }
+        }catch(err){
+          setState("idle");
+        }
+      }, 1200);
+
+    }catch(err){
+      setState("idle");
+    }
+  }
+
+  // ====== TEXT TO SPEECH (voce) ======
+  function speak(text){
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "it-IT";
+    u.rate = 1.0;
+    u.pitch = 1.1;
+
+    u.onend = ()=> setState("idle");
+    u.onerror = ()=> setState("idle");
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  // TAP = avvia ascolto
+  document.body.addEventListener("click", ()=>{
+    startListening();
+  });
+
+  // Start in idle
+  setState("idle");
+</script>
 </script>
 
 </body>
