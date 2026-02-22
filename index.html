@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixy</title>
+<style>
+body{
+  margin:0;
+  background:#000;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  overflow:hidden;
+}
+.eye{
+  width:90px;
+  height:90px;
+  background:cyan;
+  margin:25px;
+  border-radius:20px;
+  box-shadow:0 0 50px cyan;
+  transition:all .2s ease;
+}
+.speaking .eye{
+  height:120px;
+  box-shadow:0 0 80px cyan;
+}
+</style>
+</head>
+<body>
+
+<div id="face">
+  <div class="eye"></div>
+  <div class="eye"></div>
+</div>
+
+<script>
+const face = document.getElementById("face");
+
+document.body.addEventListener("click",()=>{
+  face.classList.toggle("speaking");
+});
+</script>
+
+</body>
+</html>
