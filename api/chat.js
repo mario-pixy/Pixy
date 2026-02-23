@@ -1,50 +1,48 @@
-OPENAI_DATA {
-  id: 'resp_010a59ee7b48203800699c5ee20af481929d2721ad78413f18',
-  object: 'response',
-  created_at: 1771855586,
-  status: 'completed',
-  background: false,
-  billing: { payer: 'developer' },
-  completed_at: 1771855587,
-  error: null,
-  frequency_penalty: 0,
-  incomplete_details: null,
-  instructions: null,
-  max_output_tokens: null,
-  max_tool_calls: null,
-  model: 'gpt-4o-mini-2024-07-18',
-  output: [
-    {
-      id: 'msg_010a59ee7b48203800699c5ee2fba88192ad952b8edbc98809',
-      type: 'message',
-      status: 'completed',
-      content: [Array],
-      role: 'assistant'
-    }
-  ],
-  parallel_tool_calls: true,
-  presence_penalty: 0,
-  previous_response_id: null,
-  prompt_cache_key: null,
-  prompt_cache_retention: null,
-  reasoning: { effort: null, summary: null },
-  safety_identifier: null,
-  service_tier: 'default',
-  store: true,
-  temperature: 1,
-  text: { format: { type: 'text' }, verbosity: 'medium' },
-  tool_choice: 'auto',
-  tools: [],
-  top_logprobs: 0,
-  top_p: 1,
-  truncation: 'disabled',
-  usage: {
-    input_tokens: 28,
-    input_tokens_details: { cached_tokens: 0 },
-    output_tokens: 10,
-    output_tokens_details: { reasoning_tokens: 0 },
-    total_tokens: 38
-  },
-  user: null,
-  metadata: {}
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
+
+  try {
+    const { text } = req.body || {};
+    if (!text) return res.status(400).json({ error: "Missing text" });
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY on server" });
+
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input: [
+          { role: "system", content: "Sei Pixy: risposte brevi, chiare, in italiano." },
+          { role: "user", content: text }
+        ],
+      }),
+    });
+
+    const raw = await r.text();
+    console.log("OPENAI_STATUS", r.status);
+    console.log("OPENAI_RAW", raw);
+
+    let data = null;
+    try { data = JSON.parse(raw); } catch {}
+
+    if (!r.ok) return res.status(r.status).json({ error: data || raw });
+
+    return res.status(200).json({
+      text: (data?.output_text || "").trim()
+    });
+  } catch (e) {
+    console.error("SERVER_ERROR", e);
+    return res.status(500).json({ error: String(e) });
+  }
+}
 
