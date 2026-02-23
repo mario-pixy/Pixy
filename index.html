@@ -74,7 +74,20 @@ async function sendToPixy(text){
     const data = await r.json();
     const reply = (data.text || "").trim();
     lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
+// ====== iOS: sblocco audio TTS al primo tap ======
+let ttsUnlocked = false;
 
+function unlockTTS() {
+  if (ttsUnlocked) return;
+  ttsUnlocked = true;
+
+  try {
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    window.speechSynthesis.cancel();
+  } catch (e) {}
+}
     // audio (se il telefono è in silenzioso potresti non sentirlo)
     const u = new SpeechSynthesisUtterance(reply || "Ok.");
     u.lang = "it-IT";
