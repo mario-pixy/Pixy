@@ -49,6 +49,57 @@ body{
   <div id="last" style="margin-top:6px;white-space:pre-wrap"></div>
 </div>
 <script>
+<!doctype html>
+<html lang="it">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixy</title>
+<style>
+body{
+  margin:0;
+  background:#000;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  overflow:hidden;
+}
+  #face{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+}
+.eye{
+  width:90px;
+  height:90px;
+  background:cyan;
+  margin:25px;
+  border-radius:20px;
+  box-shadow:0 0 50px cyan;
+  transition:all .2s ease;
+}
+.speaking .eye{
+  height:120px;
+  box-shadow:0 0 80px cyan;
+}
+.listening .eye{
+  height:60px;
+  box-shadow:0 0 90px cyan;
+  transform:scaleX(1.2);
+}
+</style>
+</head>
+<body>
+
+<div id="face">
+  <div class="eye"></div>
+  <div class="eye"></div>
+</div>
+<div id="debug" style="position:fixed;left:12px;right:12px;bottom:18px;color:#fff;font:14px -apple-system,system-ui;opacity:.9">
+  <div id="status">Stato: idle</div>
+  <div id="last" style="margin-top:6px;white-space:pre-wrap"></div>
+</div>
+<script>
 const face = document.getElementById("face");
 const statusEl = document.getElementById("status");
 const lastEl = document.getElementById("last");
@@ -149,6 +200,9 @@ document.body.addEventListener("click", startListening);
 unlockTTS();
 setState("idle");
 </script>
+
+</body>
+</html></script>
 
 </body>
 </html>
