@@ -1,340 +1,555 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pixy</title>
   <style>
-    body{
-      margin:0;
-      background:#000;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      height:100vh;
-      overflow:hidden;
-      user-select:none;
-      -webkit-user-select:none;
-      -webkit-touch-callout:none;
+    :root{
+      --c: cyan;
+      --glow: 0 0 55px var(--c);
+      --glow-strong: 0 0 90px var(--c);
+      --bg: #000;
     }
 
+    html,body{
+      height:100%;
+      margin:0;
+      background:var(--bg);
+      overflow:hidden;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, system-ui, Arial, sans-serif;
+    }
+
+    /* Centro scena */
+    .stage{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Faccia */
     #face{
       display:flex;
-      flex-direction:row;
+      flex-direction:column;
       align-items:center;
+      gap:16px;
+      transform: translateY(8px);
+    }
+
+    .eyes{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:46px;
     }
 
     .eye{
-      width:90px;
-      height:90px;
-      background:cyan;
-      margin:25px;
-      border-radius:20px;
-      box-shadow:0 0 50px cyan;
-      transition:all .2s ease;
+      width:110px;
+      height:110px;
+      background:var(--c);
+      border-radius:28px;
+      box-shadow: var(--glow);
+      transition: all .18s ease;
+      position:relative;
+      overflow:hidden;
     }
 
-    /* Stati base */
-    .speaking .eye{
-      height:120px;
-      box-shadow:0 0 90px cyan;
-    }
-    .listening .eye{
-      height:60px;
-      box-shadow:0 0 110px cyan;
-      transform:scaleX(1.2);
-    }
-
-    /* micro “respiro” quando idle */
-    @keyframes breathe {
-      0% { transform:scale(1); }
-      50% { transform:scale(1.03); }
-      100% { transform:scale(1); }
-    }
-    .idle .eye{
-      animation:breathe 2.2s ease-in-out infinite;
+    /* riflesso tipo “vetro” */
+    .eye::after{
+      content:"";
+      position:absolute;
+      top:12px; left:14px;
+      width:44px; height:18px;
+      background:rgba(255,255,255,.22);
+      border-radius:999px;
+      transform: rotate(-8deg);
+      filter: blur(.2px);
+      opacity:.55;
     }
 
-    /* ---- EMOZIONI / LOoi vibes ---- */
-    .happy .eye{
-      border-radius:40px;
-      transform:scale(1.08);
-      box-shadow:0 0 120px cyan;
+    /* bocca */
+    .mouth{
+      width:92px;
+      height:26px;
+      border-radius:999px;
+      background: rgba(0,255,255,.95);
+      box-shadow: 0 0 28px rgba(0,255,255,.55);
+      transition: all .18s ease;
+      position:relative;
+      overflow:hidden;
     }
 
-    .surprised .eye{
-      border-radius:10px;
-      height:130px;
-      box-shadow:0 0 150px #fff;
+    /* bocca “sorriso” */
+    #face.happy .mouth{
+      height:34px;
+      width:110px;
+      border-radius: 0 0 999px 999px;
+      transform: translateY(-1px);
     }
 
-    .thinking .eye{
-      height:70px;
-      transform:translateY(6px);
-      box-shadow:0 0 70px cyan;
+    /* bocca triste */
+    #face.sad .mouth{
+      height:34px;
+      width:110px;
+      border-radius: 999px 999px 0 0;
+      transform: translateY(4px);
+      opacity:.85;
     }
 
-    .love .eye{
-      background:#ff4da6;
-      box-shadow:0 0 140px #ff4da6;
+    /* sorpresa */
+    #face.surprised .mouth{
+      width:34px;
+      height:34px;
+      border-radius: 50%;
+      transform: translateY(-1px);
     }
 
-    .angry .eye{
-      background:#ff3333;
-      box-shadow:0 0 140px #ff0000;
+    /* speaking: occhi “respirano” */
+    #face.speaking .eye{
+      height:132px;
+      box-shadow: var(--glow-strong);
+      transform: translateY(-1px);
     }
 
-    .sleepy .eye{
-      height:40px;
-      opacity:0.65;
+    /* listening: occhi “stretti” */
+    #face.listening .eye{
+      height:68px;
+      box-shadow: var(--glow-strong);
+      transform: scaleX(1.18);
     }
 
-    .excited .eye{
-      transform:scale(1.12);
-      box-shadow:0 0 170px cyan;
+    /* thinking: micro wobble */
+    #face.thinking{
+      animation: wobble .7s ease-in-out infinite;
+    }
+    @keyframes wobble{
+      0%,100%{ transform: translateY(8px) rotate(0deg); }
+      50%{ transform: translateY(6px) rotate(.6deg); }
     }
 
-    /* Debug box */
-    #debug{
-      position:fixed;
-      left:12px; right:12px; bottom:18px;
-      color:#fff;
-      font:14px -apple-system,system-ui;
+    /* blink: chiude entrambi */
+    #face.blink .eye{
+      height:22px !important;
+      border-radius: 999px;
+      box-shadow: 0 0 40px rgba(0,255,255,.55);
+    }
+
+    /* wink: chiude solo uno */
+    #face.wink-left .eye.left{
+      height:22px !important;
+      border-radius: 999px;
+    }
+    #face.wink-right .eye.right{
+      height:22px !important;
+      border-radius: 999px;
+    }
+
+    /* sleep/idle “soft” */
+    #face.idle .eye{
+      opacity:.92;
+      box-shadow: 0 0 42px rgba(0,255,255,.42);
+    }
+
+    /* Overlay start */
+    #overlay{
+      position: fixed;
+      inset: 0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: radial-gradient(ellipse at center, rgba(0,255,255,.10), rgba(0,0,0,.92) 55%, rgba(0,0,0,1));
+      color:#dff;
+      text-align:center;
+      padding: 24px;
+    }
+    #overlay .card{
+      max-width: 520px;
+      line-height:1.25;
+      border: 1px solid rgba(0,255,255,.22);
+      background: rgba(0,0,0,.35);
+      padding: 18px 16px;
+      border-radius: 16px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 0 35px rgba(0,255,255,.12);
+    }
+    #overlay .title{
+      font-size: 18px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    #overlay .sub{
+      font-size: 14px;
       opacity:.9;
-      pointer-events:none;
     }
-    #last{ margin-top:6px; white-space:pre-wrap; }
+    #overlay .hint{
+      margin-top: 12px;
+      font-size: 13px;
+      opacity:.8;
+    }
+
+    /* Debug (spento di default) */
+    #debug{
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 18px;
+      color: #fff;
+      font: 14px -apple-system,system-ui;
+      opacity: .9;
+      display:none;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
 
-  <div id="face">
-    <div class="eye"></div>
-    <div class="eye"></div>
+  <div id="overlay">
+    <div class="card">
+      <div class="title">Pixy è pronto 🤖✨</div>
+      <div class="sub">Tocca una volta per abilitare microfono e voce.</div>
+      <div class="hint">Poi: parla normalmente, Pixy ascolta → risponde → parla → torna ad ascoltare da solo.</div>
+    </div>
   </div>
 
-  <div id="debug">
-    <div id="status">Stato: idle</div>
-    <div id="last"></div>
+  <div class="stage">
+    <div id="face" class="idle">
+      <div class="eyes">
+        <div class="eye left"></div>
+        <div class="eye right"></div>
+      </div>
+      <div class="mouth"></div>
+    </div>
   </div>
+
+  <div id="debug"></div>
 
 <script>
-  // ====== CONFIG ======
-  const DEBUG = false;         // true = mostra testo in basso
-  const AUTO_LISTEN = true;    // dopo che parla torna ad ascoltare
-  const AUTO_LISTEN_DELAY = 450;
+/**
+ * NOTE IMPORTANTI (iPhone):
+ * - Per microfono e voce, iOS richiede SEMPRE un gesto dell’utente (tap) almeno una volta.
+ * - Dopo il primo tap, possiamo continuare in automatico: ascolto → risposta → TTS → ascolto.
+ */
 
-  // ====== DOM ======
-  const face = document.getElementById("face");
-  const statusEl = document.getElementById("status");
-  const lastEl = document.getElementById("last");
-  const debugBox = document.getElementById("debug");
-  if(!DEBUG) debugBox.style.display = "none";
+const SHOW_DEBUG = false;     // metti true se vuoi vedere testo/diagnostica
+const AUTO_LISTEN = true;     // torna ad ascoltare da solo dopo che parla
+const API_URL = "/api/chat";  // il tuo endpoint Vercel
 
-  function setState(state){
-    face.classList.remove("listening","speaking","idle");
-    if(state==="listening") face.classList.add("listening");
-    if(state==="speaking") face.classList.add("speaking");
-    if(state==="idle") face.classList.add("idle");
-    if(DEBUG) statusEl.textContent = "Stato: " + state;
+const face = document.getElementById("face");
+const overlay = document.getElementById("overlay");
+const debugEl = document.getElementById("debug");
+if (SHOW_DEBUG) debugEl.style.display = "block";
+
+function dbg(...args){
+  if(!SHOW_DEBUG) return;
+  debugEl.textContent = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join("\n\n");
+}
+
+let started = false;
+let busySpeaking = false;
+let recognition = null;
+let canSR = false;
+
+// ====== STATE / ANIMAZIONI ======
+let moodTimer = null;
+
+function clearMoodSoon(ms=900){
+  if(moodTimer) clearTimeout(moodTimer);
+  moodTimer = setTimeout(() => {
+    face.classList.remove("happy","sad","surprised");
+  }, ms);
+}
+
+function setFaceState(state){
+  face.classList.remove("idle","listening","speaking","thinking","blink","wink-left","wink-right");
+  face.classList.add(state);
+}
+
+function blink(){
+  face.classList.add("blink");
+  setTimeout(() => face.classList.remove("blink"), 170);
+}
+
+function wink(side="left"){
+  face.classList.add(side === "left" ? "wink-left" : "wink-right");
+  setTimeout(() => face.classList.remove("wink-left","wink-right"), 220);
+}
+
+function applyMoodFromText(text){
+  const t = (text || "").toLowerCase();
+
+  // regole semplici “sentiment”
+  const happyWords = ["bene","ottimo","perfetto","grande","fantastico","ahaha","lol","evviva","bravo","top","che bello","figo"];
+  const sadWords = ["mi dispiace","peccato","purtroppo","triste","mannaggia","accidenti","oh no"];
+  const surpriseWords = ["wow","davvero","incredibile","no dai","serio","che cosa","oops"];
+
+  const has = (arr) => arr.some(w => t.includes(w));
+
+  if(has(sadWords)){
+    face.classList.add("sad");
+    clearMoodSoon(1200);
+    return;
+  }
+  if(has(surpriseWords)){
+    face.classList.add("surprised");
+    clearMoodSoon(900);
+    return;
+  }
+  if(has(happyWords)){
+    face.classList.add("happy");
+    clearMoodSoon(1200);
+    return;
   }
 
-  // ====== Mood helpers ======
-  function clearMoods(){
-    face.classList.remove("happy","surprised","thinking","love","angry","sleepy","excited");
-  }
-  function setMood(mood){
-    clearMoods();
-    if(mood && mood !== "neutral") face.classList.add(mood);
-  }
-  function detectMood(text){
-    const t = (text || "").toLowerCase();
+  // micro “vita” casuale
+  const r = Math.random();
+  if(r < 0.18) wink(Math.random() < 0.5 ? "left" : "right");
+  if(r > 0.82) blink();
+}
 
-    if (/(grande|ottimo|perfetto|bravo|top|bella|mitico|geniale|ci sta|spacca|bomba)/i.test(t)) return "happy";
-    if (/(wow|incredibile|davvero\?|serio\?|nooo|what|pazzesco)/i.test(t)) return "surprised";
-    if (/(amore|ti voglio bene|cuore|abbraccio|dolce|tesoro)/i.test(t)) return "love";
-    if (/(errore|non va|non funziona|arrabbi|odio|che schifo)/i.test(t)) return "angry";
-    if (/(stanco|sonno|dormire|zzz)/i.test(t)) return "sleepy";
-    if (/(vediamo|penso|forse|analizziamo|un attimo|ragioniamo|calcoliamo)/i.test(t)) return "thinking";
-    if (/(evvai|grandioso|yes|andiamo|spettacolo|forte)/i.test(t)) return "excited";
+// ====== VOCE (TTS) MIGLIORE ======
+let ttsUnlocked = false;
+let chosenVoice = null;
 
-    return "neutral";
-  }
+function unlockTTSOnce(){
+  if(ttsUnlocked) return;
+  ttsUnlocked = true;
 
-  // ====== Reply cleaning (toglie finali inutili) ======
-  function cleanReply(reply){
-    if(!reply) return "";
-    return reply
-      .replace(/\s+$/g, "")
-      .replace(/(come posso aiutarti oggi\??)\s*$/i, "")
-      .replace(/(come posso aiutarti\??)\s*$/i, "")
-      .trim();
-  }
+  try{
+    // “ping” silenzioso per sbloccare speechSynthesis dopo il tap
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    window.speechSynthesis.cancel();
+  }catch(e){}
+}
 
-  // ====== iOS Audio unlock (serve un TAP) ======
-  let audioUnlocked = false;
-  function unlockAudio(){
-    if(audioUnlocked) return;
-    audioUnlocked = true;
+function pickBestItalianVoice(){
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  if(!voices.length) return null;
 
-    try{
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(" ");
-      u.volume = 0;
-      window.speechSynthesis.speak(u);
-      window.speechSynthesis.cancel();
-    }catch(e){}
+  // Priorità: voci “migliori” spesso su iOS/macOS
+  const preferredNames = [
+    "Eloquence", "Alice", "Federica", "Giorgio", "Paola",
+    "Luca", "Silvia", "Francesca"
+  ];
+
+  // 1) prendi una voce italiana (it-IT o it_*)
+  const itVoices = voices.filter(v => (v.lang || "").toLowerCase().startsWith("it"));
+  if(!itVoices.length) return null;
+
+  // 2) prova match per nome
+  for(const name of preferredNames){
+    const v = itVoices.find(x => (x.name || "").toLowerCase().includes(name.toLowerCase()));
+    if(v) return v;
   }
 
-  // ====== TTS ======
-  function speak(text){
-    unlockAudio();
+  // 3) prova enhanced/localService se esiste
+  const local = itVoices.find(v => v.localService);
+  if(local) return local;
 
-    const msg = (text || "").trim() || "Ok.";
-    setState("speaking");
+  // 4) fallback: prima italiana
+  return itVoices[0];
+}
 
-    // Applica mood durante il parlato
-    setMood(detectMood(msg));
+function ensureVoiceReady(){
+  // alcune piattaforme caricano le voci in ritardo
+  chosenVoice = pickBestItalianVoice();
+  if(chosenVoice) return;
 
-    setTimeout(() => {
-      try{
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(msg);
-        u.lang = "it-IT";
-        u.rate = 1.0;
-        u.pitch = 1.05;
-        u.volume = 1;
+  window.speechSynthesis.onvoiceschanged = () => {
+    chosenVoice = pickBestItalianVoice();
+  };
+}
 
-        u.onend = () => {
-          clearMoods();
-          setState("idle");
-          if(AUTO_LISTEN) setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
-        };
-        u.onerror = () => {
-          clearMoods();
-          setState("idle");
-          if(AUTO_LISTEN) setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
-        };
-
-        window.speechSynthesis.speak(u);
-      }catch(e){
-        clearMoods();
-        setState("idle");
-        if(DEBUG) lastEl.textContent = "ERRORE TTS: " + e;
-      }
-    }, 50);
-  }
-
-  // ====== Call server (/api/chat) ======
-  async function sendToPixy(text){
-    try{
-      if(DEBUG) lastEl.textContent = "Tu: " + text;
-
-      // Effetto “thinking” mentre aspetta
-      setState("speaking");
-      setMood("thinking");
-
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-
-      const ct = r.headers.get("content-type") || "";
-      if(!ct.includes("application/json")){
-        const raw = await r.text();
-        clearMoods();
-        setState("idle");
-        if(DEBUG) lastEl.textContent = "ERRORE: risposta non JSON\n" + raw.slice(0, 250);
-        return;
-      }
-
-      const data = await r.json();
-      const replyRaw = (data.text || "").trim();
-      const reply = cleanReply(replyRaw);
-
-      if(DEBUG) lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
-      speak(reply || "Ok.");
-
-    }catch(e){
-      clearMoods();
-      setState("idle");
-      if(DEBUG) lastEl.textContent = "ERRORE: " + e;
-    }
-  }
-
-  // ====== Speech Recognition ======
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition = null;
-  let isListening = false;
-
-  function startListening(fromAuto=false){
-    // non ascoltare mentre parla
-    if(face.classList.contains("speaking")) return;
-
-    unlockAudio();
-
-    // Su Safari iPhone spesso SR non esiste: fallback testo
-    if(!SR){
-      if(fromAuto) return; // non spam prompt in auto
-      const t = prompt("Scrivi a Pixy:");
-      if(t && t.trim()) sendToPixy(t.trim());
+async function speak(text){
+  return new Promise((resolve) => {
+    const msg = (text || "").trim();
+    if(!msg){
+      resolve();
       return;
     }
 
-    if(!recognition){
-      recognition = new SR();
-      recognition.lang = "it-IT";
-      recognition.interimResults = false;
-      recognition.continuous = false;
-
-      recognition.onstart = () => {
-        isListening = true;
-        setState("listening");
-      };
-
-      recognition.onend = () => {
-        isListening = false;
-        if(!face.classList.contains("speaking")) setState("idle");
-      };
-
-      recognition.onerror = (e) => {
-        isListening = false;
-        setState("idle");
-        if(DEBUG) lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
-
-        // fallback testo solo se tap utente
-        if(!fromAuto){
-          const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
-          if(t && t.trim()) sendToPixy(t.trim());
-        }
-      };
-
-      recognition.onresult = (event) => {
-        const spoken = event.results?.[0]?.[0]?.transcript || "";
-        const t = spoken.trim();
-        if(t) sendToPixy(t);
-        else if(!fromAuto){
-          const x = prompt("Non ho capito. Scrivi a Pixy:");
-          if(x && x.trim()) sendToPixy(x.trim());
-        }
-      };
-    }
-
-    if(isListening) return;
+    busySpeaking = true;
+    setFaceState("speaking");
+    applyMoodFromText(msg);
 
     try{
-      recognition.start();
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = "it-IT";
+
+      // voce migliore se disponibile
+      if(chosenVoice) u.voice = chosenVoice;
+
+      // parametri più “umani”
+      u.rate = 1.02;     // 1.0–1.08 spesso ok
+      u.pitch = 1.12;    // un filo più “carino”
+      u.volume = 1;
+
+      u.onend = () => {
+        busySpeaking = false;
+        setFaceState("idle");
+        resolve();
+      };
+      u.onerror = () => {
+        busySpeaking = false;
+        setFaceState("idle");
+        resolve();
+      };
+
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+
+      // blink a metà frase ogni tanto
+      setTimeout(() => { if(busySpeaking && Math.random() < 0.55) blink(); }, 520);
+
     }catch(e){
-      isListening = false;
-      setState("idle");
+      busySpeaking = false;
+      setFaceState("idle");
+      resolve();
     }
+  });
+}
+
+// ====== CHIAMATA API ======
+async function askPixy(text){
+  const payload = { text };
+  dbg("→ USER:", text);
+
+  try{
+    setFaceState("thinking");
+
+    const r = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await r.json().catch(() => ({}));
+    const reply = (data.text || "").trim();
+
+    dbg("← PIXY:", reply || "(vuoto)");
+    return reply || "Ok!";
+
+  }catch(e){
+    dbg("ERRORE API:", String(e));
+    return "Ops, ho avuto un problema di connessione. Riproviamo?";
+  }
+}
+
+// ====== SPEECH RECOGNITION ======
+function setupRecognition(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  canSR = !!SR;
+
+  if(!canSR) return;
+
+  recognition = new SR();
+  recognition.lang = "it-IT";
+  recognition.interimResults = false;
+  recognition.continuous = false; // su iOS è più stabile così
+
+  recognition.onstart = () => {
+    if(!busySpeaking) setFaceState("listening");
+  };
+
+  recognition.onerror = (e) => {
+    dbg("ASR error:", e?.error || e);
+    // rimaniamo idle, poi riproviamo al prossimo ciclo
+    if(!busySpeaking) setFaceState("idle");
+  };
+
+  recognition.onend = () => {
+    // Se non stiamo parlando e siamo in auto, riprova ad ascoltare
+    if(AUTO_LISTEN && started && !busySpeaking){
+      // piccolo delay per evitare loop aggressivi
+      setTimeout(() => {
+        if(started && !busySpeaking) safeStartListening();
+      }, 350);
+    }
+  };
+
+  recognition.onresult = async (event) => {
+    const spoken = event?.results?.[0]?.[0]?.transcript || "";
+    const userText = spoken.trim();
+    if(!userText){
+      // se vuoto, riparti
+      if(AUTO_LISTEN && started) setTimeout(safeStartListening, 250);
+      return;
+    }
+
+    // domanda → risposta → parla → riparti
+    const reply = await askPixy(userText);
+    await speak(reply);
+
+    if(AUTO_LISTEN && started){
+      setTimeout(safeStartListening, 300);
+    }
+  };
+}
+
+function safeStartListening(){
+  if(!canSR){
+    // fallback: input testuale (se mai dovesse servire)
+    const t = prompt("Scrivi a Pixy:");
+    if(t && t.trim()){
+      (async ()=>{
+        const reply = await askPixy(t.trim());
+        await speak(reply);
+        if(AUTO_LISTEN && started) setTimeout(safeStartListening, 300);
+      })();
+    }
+    return;
   }
 
-  // TAP = avvia ascolto (obbligatorio su iOS)
-  document.body.addEventListener("click", () => startListening(false));
+  try{
+    if(!busySpeaking){
+      recognition.start();
+    }
+  }catch(e){
+    // a volte start() lanciato troppo presto genera eccezione: riprova
+    setTimeout(() => {
+      try{
+        if(!busySpeaking) recognition.start();
+      }catch(_){}
+    }, 450);
+  }
+}
 
-  // Stato iniziale
-  setState("idle");
+// ====== START (1 tap) ======
+function startOnce(){
+  if(started) return;
+  started = true;
+
+  // rimuovi overlay
+  overlay.style.display = "none";
+
+  unlockTTSOnce();
+  ensureVoiceReady();
+  setupRecognition();
+
+  // mini “ciao” iniziale (senza la frase fissa “come posso aiutarti oggi” ogni volta)
+  (async ()=>{
+    await speak("Ciao! Sono Pixy. Dimmi pure.");
+    safeStartListening();
+  })();
+}
+
+// tap/click: solo per avvio (poi tutto automatico)
+document.addEventListener("pointerdown", startOnce, { passive:true });
+
+// se vuoi che faccia ogni tanto blink da “idle”
+setInterval(() => {
+  if(started && !busySpeaking && Math.random() < 0.22){
+    blink();
+  }
+}, 2200);
+
+// iniziale
+ensureVoiceReady();
+setFaceState("idle");
 </script>
 
 </body>
