@@ -37,9 +37,21 @@ export default async function handler(req, res) {
 
     if (!r.ok) return res.status(r.status).json({ error: data || raw });
 
-    return res.status(200).json({
-      text: (data?.output_text || "").trim()
-    });
+    let finalText = "";
+
+if (data?.output && Array.isArray(data.output)) {
+  const firstMessage = data.output.find(o => o.type === "message");
+  if (firstMessage?.content && Array.isArray(firstMessage.content)) {
+    const textBlock = firstMessage.content.find(c => c.type === "output_text" || c.type === "text");
+    if (textBlock?.text) {
+      finalText = textBlock.text;
+    }
+  }
+}
+
+return res.status(200).json({
+  text: finalText.trim()
+});
   } catch (e) {
     console.error("SERVER_ERROR", e);
     return res.status(500).json({ error: String(e) });
