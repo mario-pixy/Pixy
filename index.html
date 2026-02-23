@@ -12,6 +12,9 @@
       align-items:center;
       height:100vh;
       overflow:hidden;
+      user-select:none;
+      -webkit-user-select:none;
+      -webkit-touch-callout:none;
     }
     #face{
       display:flex;
@@ -37,7 +40,7 @@
       transform:scaleX(1.2);
     }
 
-    /* Debug (poi lo togliamo) */
+    /* Debug (puoi spegnerlo via JS: DEBUG=false) */
     #debug{
       position:fixed;
       left:12px; right:12px; bottom:18px;
@@ -62,18 +65,26 @@
   </div>
 
 <script>
+  // ====== CONFIG ======
+  const DEBUG = true;          // metti false per togliere scritte
+  const AUTO_LISTEN = true;    // dopo che parla, torna in ascolto
+  const AUTO_LISTEN_DELAY = 450;
+
+  // ====== DOM ======
   const face = document.getElementById("face");
   const statusEl = document.getElementById("status");
   const lastEl = document.getElementById("last");
+  const debugBox = document.getElementById("debug");
+  if(!DEBUG) debugBox.style.display = "none";
 
   function setState(state){
     face.classList.remove("listening","speaking");
     if(state==="listening") face.classList.add("listening");
     if(state==="speaking") face.classList.add("speaking");
-    statusEl.textContent = "Stato: " + state;
+    if(DEBUG) statusEl.textContent = "Stato: " + state;
   }
 
-  // ====== iOS: sblocco audio (serve un TAP) ======
+  // ====== iOS Audio unlock (serve un TAP) ======
   let audioUnlocked = false;
   function unlockAudio(){
     if(audioUnlocked) return;
@@ -89,12 +100,14 @@
     }catch(e){}
   }
 
+  // ====== TTS ======
   function speak(text){
     unlockAudio();
 
     const msg = (text || "").trim() || "Ok.";
     setState("speaking");
 
+    // tick per iOS
     setTimeout(() => {
       try{
         window.speechSynthesis.cancel();
@@ -102,19 +115,43 @@
         u.lang = "it-IT";
         u.rate = 1.0;
         u.pitch = 1.05;
-        u.onend = () => setState("idle");
-        u.onerror = () => setState("idle");
+        u.volume = 1;
+
+        u.onend = () => {
+          setState("idle");
+          if(AUTO_LISTEN) {
+            setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
+          }
+        };
+        u.onerror = () => {
+          setState("idle");
+          if(AUTO_LISTEN) {
+            setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
+          }
+        };
+
         window.speechSynthesis.speak(u);
       }catch(e){
         setState("idle");
-        lastEl.textContent = "ERRORE TTS: " + e;
+        if(DEBUG) lastEl.textContent = "ERRORE TTS: " + e;
       }
     }, 50);
   }
 
+  // ====== Reply cleaning (toglie la frase fastidiosa) ======
+  function cleanReply(reply){
+    if(!reply) return "";
+    return reply
+      .replace(/\s+$/g, "")
+      .replace(/(come posso aiutarti oggi\??)\s*$/i, "")
+      .replace(/(come posso aiutarti\??)\s*$/i, "")
+      .trim();
+  }
+
+  // ====== Call server (/api/chat) ======
   async function sendToPixy(text){
     try{
-      lastEl.textContent = "Tu: " + text;
+      if(DEBUG) lastEl.textContent = "Tu: " + text;
       setState("speaking");
 
       const r = await fetch("/api/chat", {
@@ -127,32 +164,46 @@
       if(!ct.includes("application/json")){
         const raw = await r.text();
         setState("idle");
-        lastEl.textContent = "ERRORE: risposta non JSON\n" + raw.slice(0, 300);
+        if(DEBUG) lastEl.textContent = "ERRORE: risposta non JSON\n" + raw.slice(0, 250);
         return;
       }
 
       const data = await r.json();
-      const reply = (data.text || "").trim();
+      const replyRaw = (data.text || "").trim();
+      const reply = cleanReply(replyRaw);
 
-      lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
+      if(DEBUG) lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
       speak(reply || "Ok.");
 
     }catch(e){
       setState("idle");
-      lastEl.textContent = "ERRORE: " + e;
+      if(DEBUG) lastEl.textContent = "ERRORE: " + e;
     }
   }
 
-  // ====== Speech Recognition (spesso NON supportato su Safari iPhone) ======
+  // ====== Speech Recognition ======
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
+  let isListening = false;
 
-  function startListening(){
+  function stopListening(){
+    try{
+      if(recognition && isListening) recognition.stop();
+    }catch(e){}
+    isListening = false;
+  }
+
+  function startListening(fromAuto=false){
+    // Non avviare ascolto mentre sta parlando
+    if(face.classList.contains("speaking")) return;
+
     unlockAudio();
 
-    // Se SR non esiste -> prompt testo
+    // Su iPhone Safari spesso SR non esiste: fallback testo
     if(!SR){
-      const t = prompt("Questo browser non supporta il riconoscimento vocale. Scrivi a Pixy:");
+      // se parte da auto, non spammo prompt. Chiedo solo se toccano.
+      if(fromAuto) return;
+      const t = prompt("Scrivi a Pixy:");
       if(t && t.trim()) sendToPixy(t.trim());
       return;
     }
@@ -163,32 +214,54 @@
       recognition.interimResults = false;
       recognition.continuous = false;
 
-      recognition.onstart = () => setState("listening");
-      recognition.onend = () => setState("idle");
+      recognition.onstart = () => {
+        isListening = true;
+        setState("listening");
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        if(!face.classList.contains("speaking")) setState("idle");
+      };
 
       recognition.onerror = (e) => {
+        isListening = false;
         setState("idle");
-        lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
-        const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
-        if(t && t.trim()) sendToPixy(t.trim());
+        if(DEBUG) lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
+
+        // fallback testuale SOLO se è stato un tap utente
+        if(!fromAuto){
+          const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
+          if(t && t.trim()) sendToPixy(t.trim());
+        }
       };
 
       recognition.onresult = (event) => {
         const spoken = event.results?.[0]?.[0]?.transcript || "";
         const t = spoken.trim();
         if(t) sendToPixy(t);
-        else {
-          const x = prompt("Non ho capito l'audio. Scrivi a Pixy:");
+        else if(!fromAuto){
+          const x = prompt("Non ho capito. Scrivi a Pixy:");
           if(x && x.trim()) sendToPixy(x.trim());
         }
       };
     }
 
-    recognition.start();
+    // evita start doppio
+    if(isListening) return;
+
+    try{
+      recognition.start();
+    }catch(e){
+      // Safari a volte lancia error se start consecutivi
+      isListening = false;
+      setState("idle");
+    }
   }
 
-  // 1 tap = sblocca audio + avvia ascolto (obbligatorio su iOS)
-  document.body.addEventListener("click", startListening);
+  // ====== TAP ======
+  // Primo tap: sblocca audio e avvia ascolto (obbligatorio su iOS)
+  document.body.addEventListener("click", () => startListening(false));
 
   setState("idle");
 </script>
