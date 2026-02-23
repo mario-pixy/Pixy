@@ -16,11 +16,13 @@
       -webkit-user-select:none;
       -webkit-touch-callout:none;
     }
+
     #face{
       display:flex;
       flex-direction:row;
       align-items:center;
     }
+
     .eye{
       width:90px;
       height:90px;
@@ -30,17 +32,68 @@
       box-shadow:0 0 50px cyan;
       transition:all .2s ease;
     }
+
+    /* Stati base */
     .speaking .eye{
       height:120px;
-      box-shadow:0 0 80px cyan;
+      box-shadow:0 0 90px cyan;
     }
     .listening .eye{
       height:60px;
-      box-shadow:0 0 90px cyan;
+      box-shadow:0 0 110px cyan;
       transform:scaleX(1.2);
     }
 
-    /* Debug (puoi spegnerlo via JS: DEBUG=false) */
+    /* micro “respiro” quando idle */
+    @keyframes breathe {
+      0% { transform:scale(1); }
+      50% { transform:scale(1.03); }
+      100% { transform:scale(1); }
+    }
+    .idle .eye{
+      animation:breathe 2.2s ease-in-out infinite;
+    }
+
+    /* ---- EMOZIONI / LOoi vibes ---- */
+    .happy .eye{
+      border-radius:40px;
+      transform:scale(1.08);
+      box-shadow:0 0 120px cyan;
+    }
+
+    .surprised .eye{
+      border-radius:10px;
+      height:130px;
+      box-shadow:0 0 150px #fff;
+    }
+
+    .thinking .eye{
+      height:70px;
+      transform:translateY(6px);
+      box-shadow:0 0 70px cyan;
+    }
+
+    .love .eye{
+      background:#ff4da6;
+      box-shadow:0 0 140px #ff4da6;
+    }
+
+    .angry .eye{
+      background:#ff3333;
+      box-shadow:0 0 140px #ff0000;
+    }
+
+    .sleepy .eye{
+      height:40px;
+      opacity:0.65;
+    }
+
+    .excited .eye{
+      transform:scale(1.12);
+      box-shadow:0 0 170px cyan;
+    }
+
+    /* Debug box */
     #debug{
       position:fixed;
       left:12px; right:12px; bottom:18px;
@@ -66,8 +119,8 @@
 
 <script>
   // ====== CONFIG ======
-  const DEBUG = true;          // metti false per togliere scritte
-  const AUTO_LISTEN = true;    // dopo che parla, torna in ascolto
+  const DEBUG = false;         // true = mostra testo in basso
+  const AUTO_LISTEN = true;    // dopo che parla torna ad ascoltare
   const AUTO_LISTEN_DELAY = 450;
 
   // ====== DOM ======
@@ -78,10 +131,43 @@
   if(!DEBUG) debugBox.style.display = "none";
 
   function setState(state){
-    face.classList.remove("listening","speaking");
+    face.classList.remove("listening","speaking","idle");
     if(state==="listening") face.classList.add("listening");
     if(state==="speaking") face.classList.add("speaking");
+    if(state==="idle") face.classList.add("idle");
     if(DEBUG) statusEl.textContent = "Stato: " + state;
+  }
+
+  // ====== Mood helpers ======
+  function clearMoods(){
+    face.classList.remove("happy","surprised","thinking","love","angry","sleepy","excited");
+  }
+  function setMood(mood){
+    clearMoods();
+    if(mood && mood !== "neutral") face.classList.add(mood);
+  }
+  function detectMood(text){
+    const t = (text || "").toLowerCase();
+
+    if (/(grande|ottimo|perfetto|bravo|top|bella|mitico|geniale|ci sta|spacca|bomba)/i.test(t)) return "happy";
+    if (/(wow|incredibile|davvero\?|serio\?|nooo|what|pazzesco)/i.test(t)) return "surprised";
+    if (/(amore|ti voglio bene|cuore|abbraccio|dolce|tesoro)/i.test(t)) return "love";
+    if (/(errore|non va|non funziona|arrabbi|odio|che schifo)/i.test(t)) return "angry";
+    if (/(stanco|sonno|dormire|zzz)/i.test(t)) return "sleepy";
+    if (/(vediamo|penso|forse|analizziamo|un attimo|ragioniamo|calcoliamo)/i.test(t)) return "thinking";
+    if (/(evvai|grandioso|yes|andiamo|spettacolo|forte)/i.test(t)) return "excited";
+
+    return "neutral";
+  }
+
+  // ====== Reply cleaning (toglie finali inutili) ======
+  function cleanReply(reply){
+    if(!reply) return "";
+    return reply
+      .replace(/\s+$/g, "")
+      .replace(/(come posso aiutarti oggi\??)\s*$/i, "")
+      .replace(/(come posso aiutarti\??)\s*$/i, "")
+      .trim();
   }
 
   // ====== iOS Audio unlock (serve un TAP) ======
@@ -90,7 +176,6 @@
     if(audioUnlocked) return;
     audioUnlocked = true;
 
-    // sblocca speechSynthesis
     try{
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(" ");
@@ -107,7 +192,9 @@
     const msg = (text || "").trim() || "Ok.";
     setState("speaking");
 
-    // tick per iOS
+    // Applica mood durante il parlato
+    setMood(detectMood(msg));
+
     setTimeout(() => {
       try{
         window.speechSynthesis.cancel();
@@ -118,41 +205,33 @@
         u.volume = 1;
 
         u.onend = () => {
+          clearMoods();
           setState("idle");
-          if(AUTO_LISTEN) {
-            setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
-          }
+          if(AUTO_LISTEN) setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
         };
         u.onerror = () => {
+          clearMoods();
           setState("idle");
-          if(AUTO_LISTEN) {
-            setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
-          }
+          if(AUTO_LISTEN) setTimeout(() => startListening(true), AUTO_LISTEN_DELAY);
         };
 
         window.speechSynthesis.speak(u);
       }catch(e){
+        clearMoods();
         setState("idle");
         if(DEBUG) lastEl.textContent = "ERRORE TTS: " + e;
       }
     }, 50);
   }
 
-  // ====== Reply cleaning (toglie la frase fastidiosa) ======
-  function cleanReply(reply){
-    if(!reply) return "";
-    return reply
-      .replace(/\s+$/g, "")
-      .replace(/(come posso aiutarti oggi\??)\s*$/i, "")
-      .replace(/(come posso aiutarti\??)\s*$/i, "")
-      .trim();
-  }
-
   // ====== Call server (/api/chat) ======
   async function sendToPixy(text){
     try{
       if(DEBUG) lastEl.textContent = "Tu: " + text;
+
+      // Effetto “thinking” mentre aspetta
       setState("speaking");
+      setMood("thinking");
 
       const r = await fetch("/api/chat", {
         method: "POST",
@@ -163,6 +242,7 @@
       const ct = r.headers.get("content-type") || "";
       if(!ct.includes("application/json")){
         const raw = await r.text();
+        clearMoods();
         setState("idle");
         if(DEBUG) lastEl.textContent = "ERRORE: risposta non JSON\n" + raw.slice(0, 250);
         return;
@@ -176,6 +256,7 @@
       speak(reply || "Ok.");
 
     }catch(e){
+      clearMoods();
       setState("idle");
       if(DEBUG) lastEl.textContent = "ERRORE: " + e;
     }
@@ -186,23 +267,15 @@
   let recognition = null;
   let isListening = false;
 
-  function stopListening(){
-    try{
-      if(recognition && isListening) recognition.stop();
-    }catch(e){}
-    isListening = false;
-  }
-
   function startListening(fromAuto=false){
-    // Non avviare ascolto mentre sta parlando
+    // non ascoltare mentre parla
     if(face.classList.contains("speaking")) return;
 
     unlockAudio();
 
-    // Su iPhone Safari spesso SR non esiste: fallback testo
+    // Su Safari iPhone spesso SR non esiste: fallback testo
     if(!SR){
-      // se parte da auto, non spammo prompt. Chiedo solo se toccano.
-      if(fromAuto) return;
+      if(fromAuto) return; // non spam prompt in auto
       const t = prompt("Scrivi a Pixy:");
       if(t && t.trim()) sendToPixy(t.trim());
       return;
@@ -229,7 +302,7 @@
         setState("idle");
         if(DEBUG) lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
 
-        // fallback testuale SOLO se è stato un tap utente
+        // fallback testo solo se tap utente
         if(!fromAuto){
           const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
           if(t && t.trim()) sendToPixy(t.trim());
@@ -247,22 +320,20 @@
       };
     }
 
-    // evita start doppio
     if(isListening) return;
 
     try{
       recognition.start();
     }catch(e){
-      // Safari a volte lancia error se start consecutivi
       isListening = false;
       setState("idle");
     }
   }
 
-  // ====== TAP ======
-  // Primo tap: sblocca audio e avvia ascolto (obbligatorio su iOS)
+  // TAP = avvia ascolto (obbligatorio su iOS)
   document.body.addEventListener("click", () => startListening(false));
 
+  // Stato iniziale
   setState("idle");
 </script>
 
