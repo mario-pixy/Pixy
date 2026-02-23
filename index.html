@@ -44,18 +44,25 @@ body{
   <div class="eye"></div>
   <div class="eye"></div>
 </div>
-
+<div id="debug" style="position:fixed;left:12px;right:12px;bottom:18px;color:#fff;font:14px -apple-system,system-ui;opacity:.9">
+  <div id="status">Stato: idle</div>
+  <div id="last" style="margin-top:6px;white-space:pre-wrap"></div>
+</div>
 <script>
 const face = document.getElementById("face");
+const statusEl = document.getElementById("status");
+const lastEl = document.getElementById("last");
 
 function setState(state){
   face.classList.remove("listening","speaking");
   if(state==="listening") face.classList.add("listening");
   if(state==="speaking") face.classList.add("speaking");
+  statusEl.textContent = "Stato: " + state;
 }
 
 async function sendToPixy(text){
   try{
+    lastEl.textContent = "Tu: " + text;
     setState("speaking");
 
     const r = await fetch("/api/chat", {
@@ -66,17 +73,18 @@ async function sendToPixy(text){
 
     const data = await r.json();
     const reply = (data.text || "").trim();
-    const finalReply = reply || "Ok.";
+    lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
 
-    const u = new SpeechSynthesisUtterance(finalReply);
+    // audio (se il telefono è in silenzioso potresti non sentirlo)
+    const u = new SpeechSynthesisUtterance(reply || "Ok.");
     u.lang = "it-IT";
     u.onend = () => setState("idle");
-
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
 
   } catch(e){
     setState("idle");
+    lastEl.textContent = "ERRORE: " + e;
     alert("Errore: " + e);
   }
 }
@@ -85,8 +93,9 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 
 function startListening(){
+  // fallback testuale garantito (su iPhone spesso è l’unica via affidabile)
   if(!SR){
-    const t = prompt("Scrivi a Pixy:");
+    const t = prompt("Scrivi a Pixy (Safari iPhone spesso non supporta il riconoscimento vocale):");
     if(t && t.trim()) sendToPixy(t.trim());
     return;
   }
@@ -100,10 +109,22 @@ function startListening(){
     recognition.onstart = () => setState("listening");
     recognition.onend = () => setState("idle");
 
+    recognition.onerror = (e) => {
+      setState("idle");
+      lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
+      // fallback immediato
+      const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
+      if(t && t.trim()) sendToPixy(t.trim());
+    };
+
     recognition.onresult = (event) => {
       const spoken = event.results?.[0]?.[0]?.transcript || "";
       const t = spoken.trim();
       if(t) sendToPixy(t);
+      else {
+        const x = prompt("Non ho capito l'audio. Scrivi a Pixy:");
+        if(x && x.trim()) sendToPixy(x.trim());
+      }
     };
   }
 
