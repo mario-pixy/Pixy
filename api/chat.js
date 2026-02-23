@@ -5,7 +5,9 @@ export default async function handler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
-
+console.log("REQ", req.method, req.url);
+console.log("BODY", req.body);
+console.log("HAS_KEY", !!process.env.OPENAI_API_KEY);
   try {
     const { text } = req.body || {};
     if (!text) return res.status(400).json({ error: "Missing text" });
@@ -29,6 +31,8 @@ export default async function handler(req, res) {
     });
 
     const data = await r.json();
+    console.log("OPENAI_STATUS", r.status);
+console.log("OPENAI_DATA", data);
     if (!r.ok) return res.status(r.status).json({ error: data });
 
     return res.status(200).json({ text: (data.output_text || "").trim() });
