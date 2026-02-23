@@ -1,208 +1,197 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pixy</title>
-<style>
-body{
-  margin:0;
-  background:#000;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-  overflow:hidden;
-}
-  #face{
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-}
-.eye{
-  width:90px;
-  height:90px;
-  background:cyan;
-  margin:25px;
-  border-radius:20px;
-  box-shadow:0 0 50px cyan;
-  transition:all .2s ease;
-}
-.speaking .eye{
-  height:120px;
-  box-shadow:0 0 80px cyan;
-}
-.listening .eye{
-  height:60px;
-  box-shadow:0 0 90px cyan;
-  transform:scaleX(1.2);
-}
-</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixy</title>
+  <style>
+    body{
+      margin:0;
+      background:#000;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+      overflow:hidden;
+    }
+    #face{
+      display:flex;
+      flex-direction:row;
+      align-items:center;
+    }
+    .eye{
+      width:90px;
+      height:90px;
+      background:cyan;
+      margin:25px;
+      border-radius:20px;
+      box-shadow:0 0 50px cyan;
+      transition:all .2s ease;
+    }
+    .speaking .eye{
+      height:120px;
+      box-shadow:0 0 80px cyan;
+    }
+    .listening .eye{
+      height:60px;
+      box-shadow:0 0 90px cyan;
+      transform:scaleX(1.2);
+    }
+
+    /* Debug (poi lo togliamo) */
+    #debug{
+      position:fixed;
+      left:12px; right:12px; bottom:18px;
+      color:#fff;
+      font:14px -apple-system,system-ui;
+      opacity:.9;
+      pointer-events:none;
+    }
+    #last{ margin-top:6px; white-space:pre-wrap; }
+  </style>
 </head>
 <body>
 
-<div id="face">
-  <div class="eye"></div>
-  <div class="eye"></div>
-</div>
-<div id="debug" style="position:fixed;left:12px;right:12px;bottom:18px;color:#fff;font:14px -apple-system,system-ui;opacity:.9">
-  <div id="status">Stato: idle</div>
-  <div id="last" style="margin-top:6px;white-space:pre-wrap"></div>
-</div>
+  <div id="face">
+    <div class="eye"></div>
+    <div class="eye"></div>
+  </div>
+
+  <div id="debug">
+    <div id="status">Stato: idle</div>
+    <div id="last"></div>
+  </div>
+
 <script>
-<!doctype html>
-<html lang="it">
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pixy</title>
-<style>
-body{
-  margin:0;
-  background:#000;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-  overflow:hidden;
-}
-  #face{
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-}
-.eye{
-  width:90px;
-  height:90px;
-  background:cyan;
-  margin:25px;
-  border-radius:20px;
-  box-shadow:0 0 50px cyan;
-  transition:all .2s ease;
-}
-.speaking .eye{
-  height:120px;
-  box-shadow:0 0 80px cyan;
-}
-.listening .eye{
-  height:60px;
-  box-shadow:0 0 90px cyan;
-  transform:scaleX(1.2);
-}
-</style>
-</head>
-<body>
+  const face = document.getElementById("face");
+  const statusEl = document.getElementById("status");
+  const lastEl = document.getElementById("last");
 
-<div id="face">
-  <div class="eye"></div>
-  <div class="eye"></div>
-</div>
-<div id="debug" style="position:fixed;left:12px;right:12px;bottom:18px;color:#fff;font:14px -apple-system,system-ui;opacity:.9">
-  <div id="status">Stato: idle</div>
-  <div id="last" style="margin-top:6px;white-space:pre-wrap"></div>
-</div>
-<script>
-const face = document.getElementById("face");
-const statusEl = document.getElementById("status");
-const lastEl = document.getElementById("last");
+  function setState(state){
+    face.classList.remove("listening","speaking");
+    if(state==="listening") face.classList.add("listening");
+    if(state==="speaking") face.classList.add("speaking");
+    statusEl.textContent = "Stato: " + state;
+  }
 
-function setState(state){
-  face.classList.remove("listening","speaking");
-  if(state==="listening") face.classList.add("listening");
-  if(state==="speaking") face.classList.add("speaking");
-  statusEl.textContent = "Stato: " + state;
-}
+  // ====== iOS: sblocco audio (serve un TAP) ======
+  let audioUnlocked = false;
+  function unlockAudio(){
+    if(audioUnlocked) return;
+    audioUnlocked = true;
 
-async function sendToPixy(text){
-  try{
-    lastEl.textContent = "Tu: " + text;
+    // sblocca speechSynthesis
+    try{
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+      window.speechSynthesis.cancel();
+    }catch(e){}
+  }
+
+  function speak(text){
+    unlockAudio();
+
+    const msg = (text || "").trim() || "Ok.";
     setState("speaking");
 
-    const r = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
-
-    const data = await r.json();
-    const reply = (data.text || "").trim();
-    lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
-// ====== iOS: sblocco audio TTS al primo tap ======
-let ttsUnlocked = false;
-
-function unlockTTS() {
-  unlockTTS();
-  if (ttsUnlocked) return;
-  ttsUnlocked = true;
-
-  try {
-    const u = new SpeechSynthesisUtterance(" ");
-    u.volume = 0;
-    window.speechSynthesis.speak(u);
-    window.speechSynthesis.cancel();
-  } catch (e) {}
-}
-    // audio (se il telefono è in silenzioso potresti non sentirlo)
-    const u = new SpeechSynthesisUtterance(reply || "Ok.");
-    u.lang = "it-IT";
-    u.onend = () => setState("idle");
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-
-  } catch(e){
-    setState("idle");
-    lastEl.textContent = "ERRORE: " + e;
-    alert("Errore: " + e);
-  }
-}
-
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-
-function startListening(){
-  // fallback testuale garantito (su iPhone spesso è l’unica via affidabile)
-  if(!SR){
-    const t = prompt("Scrivi a Pixy (Safari iPhone spesso non supporta il riconoscimento vocale):");
-    if(t && t.trim()) sendToPixy(t.trim());
-    return;
-  }
-
-  if(!recognition){
-    recognition = new SR();
-    recognition.lang = "it-IT";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-
-    recognition.onstart = () => setState("listening");
-    recognition.onend = () => setState("idle");
-
-    recognition.onerror = (e) => {
-      setState("idle");
-      lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
-      // fallback immediato
-      const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
-      if(t && t.trim()) sendToPixy(t.trim());
-    };
-
-    recognition.onresult = (event) => {
-      const spoken = event.results?.[0]?.[0]?.transcript || "";
-      const t = spoken.trim();
-      if(t) sendToPixy(t);
-      else {
-        const x = prompt("Non ho capito l'audio. Scrivi a Pixy:");
-        if(x && x.trim()) sendToPixy(x.trim());
+    setTimeout(() => {
+      try{
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(msg);
+        u.lang = "it-IT";
+        u.rate = 1.0;
+        u.pitch = 1.05;
+        u.onend = () => setState("idle");
+        u.onerror = () => setState("idle");
+        window.speechSynthesis.speak(u);
+      }catch(e){
+        setState("idle");
+        lastEl.textContent = "ERRORE TTS: " + e;
       }
-    };
+    }, 50);
   }
 
-  recognition.start();
-}
+  async function sendToPixy(text){
+    try{
+      lastEl.textContent = "Tu: " + text;
+      setState("speaking");
 
-document.body.addEventListener("click", startListening);
-unlockTTS();
-setState("idle");
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+
+      const ct = r.headers.get("content-type") || "";
+      if(!ct.includes("application/json")){
+        const raw = await r.text();
+        setState("idle");
+        lastEl.textContent = "ERRORE: risposta non JSON\n" + raw.slice(0, 300);
+        return;
+      }
+
+      const data = await r.json();
+      const reply = (data.text || "").trim();
+
+      lastEl.textContent = "Tu: " + text + "\nPixy: " + (reply || "(risposta vuota)");
+      speak(reply || "Ok.");
+
+    }catch(e){
+      setState("idle");
+      lastEl.textContent = "ERRORE: " + e;
+    }
+  }
+
+  // ====== Speech Recognition (spesso NON supportato su Safari iPhone) ======
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+
+  function startListening(){
+    unlockAudio();
+
+    // Se SR non esiste -> prompt testo
+    if(!SR){
+      const t = prompt("Questo browser non supporta il riconoscimento vocale. Scrivi a Pixy:");
+      if(t && t.trim()) sendToPixy(t.trim());
+      return;
+    }
+
+    if(!recognition){
+      recognition = new SR();
+      recognition.lang = "it-IT";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => setState("listening");
+      recognition.onend = () => setState("idle");
+
+      recognition.onerror = (e) => {
+        setState("idle");
+        lastEl.textContent = "ERRORE MIC/ASR: " + (e.error || "sconosciuto");
+        const t = prompt("Non riesco a sentire. Scrivi a Pixy:");
+        if(t && t.trim()) sendToPixy(t.trim());
+      };
+
+      recognition.onresult = (event) => {
+        const spoken = event.results?.[0]?.[0]?.transcript || "";
+        const t = spoken.trim();
+        if(t) sendToPixy(t);
+        else {
+          const x = prompt("Non ho capito l'audio. Scrivi a Pixy:");
+          if(x && x.trim()) sendToPixy(x.trim());
+        }
+      };
+    }
+
+    recognition.start();
+  }
+
+  // 1 tap = sblocca audio + avvia ascolto (obbligatorio su iOS)
+  document.body.addEventListener("click", startListening);
+
+  setState("idle");
 </script>
-
-</body>
-</html></script>
 
 </body>
 </html>
